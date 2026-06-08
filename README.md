@@ -1,35 +1,107 @@
-<h3 align="center"><b>XCP-ng</b></h3>
-<p align="center"><b>Turnkey Open Source Virtualization Platform</b></p>
+# UniCORE.XCP
 
-![](https://repository-images.githubusercontent.com/115137464/d31efd36-b148-4d9b-a2a3-fea9663fedf7)
+**SCAFFOLD-ANCHOR repository — initial scaffold 2026-06-04.**
 
-XCP-ng: the user-friendly, high-performance virtualization solution, developed collaboratively for unrestricted features and open-source accessibility.
+Full scaffolding, upstream-fork integration, and source-code work all pending a fresh dedicated kickoff arc. This initial commit exists to lock the repository's identity, licence position, and place in the UniCORE Sanity Check fleet so the work cannot be forgotten.
 
-## ⚡️ Quick start
+Author: **Bryan Fred, Unitek Systems Limited, Bedford, United Kingdom.**
+First commit: **2026-06-04 14:50 UTC.**
 
-Download [the ISO here](https://mirrors.xcp-ng.org/isos/8.2/xcp-ng-8.2.1.iso?https=1), and [install it](https://xcp-ng.org/#easy-to-install) on your own hardware.
+---
 
-## 📚 Documentation
+## What this repository is
 
-The official documentation is available at https://docs.xcp-ng.org
+`bryanunitek/UniCORE.XCP` is the **XCP** family member: On-prem-deployment-shape public gift surface. Documentation today; source code at certification.
 
-## 🚀 Features
+**Family purpose:** Open-source virtualisation platform. Multi-upstream: XCP-ng (Xen-based hypervisor) + Xen Orchestra (management UI).
 
-- **Powerful virtualization platform**: run, snapshot, live migrate & grow any kind of workload/Operating system on top of XCP-ng, even containers!
-- **Turnkey:** no complicated setup, XCP-ng is a true appliance with everything pre-configured and ready to run your VMs!
-- **Security:** based on the Xen hypervisor technology, XCP-ng is one of the most secure virtualization platform on the market, both technologically and with a really [serious security workflow](https://docs.xcp-ng.org/project/security).
-- **Manageable at scale:** there's many integrated ways to manage your XCP-ng host, both locally and remotely with a CLI, GUI and API. [Xen Orchestra](https://vates.tech/xen-orchestra/) is the de facto administration & backup platform for it.
-- **Fully Open Source:** no paywalls or complicated licenses, all the features are free
-- **Pro supported:** want to run in production? XCP-ng is part of the [Vates VMS](https://vates.tech/) stack that got you covered from the virtualization platform to the administration & backup tools.
+**Role in UniCORE:** Virtualisation substrate — UniCORE.GVB substrate-services consume XCP-ng + Xen Orchestra to deliver virtualisation on customer-premise hardware and SaaS infrastructure tiers. Bryan's existing production infrastructure runs on XCP-ng across the LA / NJ / UK GVB node fleet.
 
-## 📸 Screenshots
+---
 
-![](https://vates.tech/assets/img/misc/XOLite_Pool_dashboard_mockup_dashes_light_2.png.avif)
+## Upstream
 
-![](https://xen-orchestra.com/blog/content/images/size/w1600/2023/05/Desktop---Pool-dashboard---Default.png)
+- **Upstream projects:** [xcp-ng](https://github.com/xcp-ng/xcp) + [xen-orchestra](https://github.com/vatesfr/xen-orchestra)
+- **Upstream licences:** GPL-2.0 (xcp-ng) + AGPL-3.0 (xen-orchestra)
+- **Our relationship:** Fork-and-extend. Upstream codebases are consumed verbatim under their original licences; our code additions carry the same copyleft licences; our documentation additions sit under CC BY 4.0.
 
-## 🧑‍🚀 Community
+This repository tracks multiple upstreams via separate remotes (`upstream-xcp` + `upstream-xo`). The merge discipline that governs how this repository absorbs upstream changes is documented in [`UPSTREAM-MERGE-DISCIPLINE.md`](UPSTREAM-MERGE-DISCIPLINE.md).
 
-XCP-ng has a living community that you can join on our [forum](https://xcp-ng.org/forum/). 
+---
 
-The project is open to [contributions](https://docs.xcp-ng.org/project/contributing/), [bug reports](https://github.com/xcp-ng/xcp/wiki/How-to-report-bugs) and you can also [host a mirror](https://github.com/xcp-ng/xcp/wiki/Mirrors) for XCP-ng.
+## Platforms
+
+Windows · Linux · macOS · iOS · Android
+
+---
+
+## Family — the four-repo pattern
+
+UniCORE.XCP is published as a **four-repo family**:
+
+- `bryanunitek/UniCORE.XCP` — public on-prem-deployment-shape gift surface
+- `bryanunitek/UniSaaS.UniCORE.XCP` — public SaaS-deployment-shape gift surface
+- `bryanunitek/UniCORE.XCP-Claw` (private) — on-prem-shape working repository
+- `bryanunitek/UniSaaS.UniCORE.XCP-Claw` (private) — SaaS-shape working repository
+
+**This repository is the `UniCORE.XCP` member of the family.**
+
+Sister repos:
+
+- [`UniSaaS.UniCORE.XCP`](https://github.com/bryanunitek/UniSaaS.UniCORE.XCP)
+- `UniCORE.XCP-Claw (private)`
+- `UniSaaS.UniCORE.XCP-Claw (private)`
+
+---
+
+## Status
+
+**SCAFFOLD-ANCHOR** as of 2026-06-04 14:50 UTC. See [`STATUS.md`](STATUS.md) for the full status breakdown.
+
+---
+
+## Files in this scaffold commit
+
+- [`README.md`](README.md) — this file
+- [`LICENSE.md`](LICENSE.md) — UniCORE additions licence (GPL-2.0/AGPL-3.0 code + CC BY 4.0 docs)
+- [`LICENSE.upstream.md`](LICENSE.upstream.md) — verbatim upstream licence (renamed from original `LICENSE`)
+- [`README.upstream.md`](README.upstream.md) — verbatim upstream README (renamed)
+- [`STATUS.md`](STATUS.md) — scaffold-anchor status
+- [`UPSTREAM-MERGE-DISCIPLINE.md`](UPSTREAM-MERGE-DISCIPLINE.md) — canonical merge discipline
+- [`AI-AUTHORSHIP.md`](AI-AUTHORSHIP.md) — AI authorship disclosure
+
+---
+
+## Related repositories — UniCORE programme
+
+**Foundation triad (gift, public, CC BY 4.0):**
+- [`UniVERSE`](https://github.com/bryanunitek/UniVERSE) — programme
+- [`TrueAI`](https://github.com/bryanunitek/TrueAI) — Foundation (Nine Invariants)
+- [`UniCORE-AI`](https://github.com/bryanunitek/UniCORE-AI) — reference architecture (12 Levels)
+
+**Implementation reference (deployment-shape pair):**
+- [`UniCORE`](https://github.com/bryanunitek/UniCORE) — on-prem-shape
+- [`UniSaaS.UniCORE`](https://github.com/bryanunitek/UniSaaS.UniCORE) — SaaS-shape
+
+**Substrate-services layer (deployment-shape pair):**
+- [`UniCORE.GVB`](https://github.com/bryanunitek/UniCORE.GVB) — on-prem-shape
+- [`UniSaaS.UniCORE.GVB`](https://github.com/bryanunitek/UniSaaS.UniCORE.GVB) — SaaS-shape
+
+**Forked-upstream building blocks:**
+- UniCORE.Avalonia family (4 repos) — cross-platform UI
+- UniCORE.DNN family (4 repos) — CMS platform
+- UniCORE.Asterisk family (4 repos) — telephony
+- UniCORE.Jitsi family (4 repos) — video conferencing
+- UniCORE.Signal family (4 repos) — secure messaging
+- UniCORE.XCP family (4 repos) — virtualisation ← **this family**
+
+---
+
+## Contact
+
+- **Public discussion:** [GitHub Discussions](https://github.com/bryanunitek/UniCORE.XCP/discussions) (public repos only)
+- **Private contact / connection request:** [LinkedIn — Bryan Fred](https://www.linkedin.com/in/bryan-fred-02209753/)
+
+---
+
+*Author: Bryan Fred, Unitek Systems Limited, Bedford, United Kingdom. Public. Given, not sold. Irrevocable.*
