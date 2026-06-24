@@ -7,6 +7,7 @@ import subprocess
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 try:
     from specfile import Specfile
@@ -15,6 +16,21 @@ except ImportError:
     exit(1)
 
 TIME_FORMAT = '%Y-%m-%d-%H-%M-%S'
+
+# target -> allowed branch(es)
+# To lock a target, just assign an empty set: "{}"
+# Unlisted targets are not protected then any branch will be allowed
+PROTECTED_TARGETS = {
+    "v8.2-ci": {"8.2"},
+    "v8.2-fasttrack": {"8.2"},
+    "v8.2-incoming": {"8.2"},
+    "v8.3-ci": {"8.3"},
+    "v8.3-fasttrack": {"8.3"},
+    "v8.3-incoming": {"8.3"},
+    "v9.0-ci": {"master"},
+    "v9.0-fasttrack": {"master"},
+    "v9.0-incoming": {"master"},
+}
 
 @contextmanager
 def cd(dir):
@@ -36,10 +52,35 @@ def check_git_repo(dirpath):
     with cd(dirpath):
         return subprocess.run(['git', 'diff-index', '--quiet', 'HEAD', '--']).returncode == 0
 
-def check_commit_is_available_remotely(dirpath, hash):
+def check_commit_is_available_remotely(dirpath, sha, target, warn):
     with cd(dirpath):
-        if not subprocess.check_output(['git', 'branch', '-r', '--contains', hash]):
+        output = subprocess.check_output(['git', 'branch', '-r', '--contains', sha])
+        if not output:
             raise Exception("The current commit is not available in the remote repository")
+        logging.debug('Commit %s is contained in remote branch: %s', sha, output.decode().strip())
+        
+        if target is not None and re.match(r'v\d+\.\d+-u-.+', target):
+            raise Exception("Building with a user target requires using --pre-build or --test-build.\n")
+        try:
+            allowed_branches = PROTECTED_TARGETS.get(target)
+            if allowed_branches is None:
+                logging.debug('Target %s is not protected, any branch is allowed', target)
+            else:
+                for branch in allowed_branches:
+                    try:
+                        if is_remote_branch_commit(dirpath, sha, branch):
+                            logging.debug('Commit %s is on top of branch %s (target: %s)', sha, branch, target)
+                            break
+                    except Exception as e:
+                        logging.debug('Ignoring %s', e)
+                else:
+                    raise Exception(f"The current commit is not the last commit of any remote allowed branches: {allowed_branches}.\n"
+                                    f"This is required when using the protected target {target}.")
+        except Exception as e:
+            if warn:
+                print(f"warning: {e}", flush=True)
+            else:
+                raise e
 
 def get_repo_and_commit_info(dirpath):
     with cd(dirpath):
@@ -50,12 +91,23 @@ def get_repo_and_commit_info(dirpath):
 
 def koji_url(remote, hash):
     if remote.startswith('git@'):
-        remote = re.sub(r'git@(.+):', r'git+https://\1/', remote)
-    elif remote.startswith('https://'):
-        remote = 'git+' + remote
+        remote = remote[4:]
+
+    try:
+        url = urlparse(remote)
+    except ValueError:
+        raise Exception(f"Unrecognized remote URL: {remote}")
+
+    if url.scheme == 'https':
+        url = url._replace(scheme='git+https')
+    elif url.scheme == 'github.com':
+        # urlparse is not great at rejecting invalid urls, fill in the fields
+        # to generate a proper url
+        url = url._replace(scheme='git+https', netloc=url.scheme)
     else:
-        raise Exception("Unrecognized remote URL")
-    return remote + "?#" + hash
+        raise Exception(f"Unrecognized remote URL: {remote}")
+
+    return f"{urlunparse(url)}?#{hash}"
 
 @contextmanager
 def local_branch(branch):
@@ -65,7 +117,8 @@ def local_branch(branch):
     try:
         yield branch
     finally:
-        subprocess.check_call(['git', 'checkout', prev_branch])
+        # prev_branch is empty when the head was detached
+        subprocess.check_call(['git', 'checkout', prev_branch or commit])
 
 def is_old_branch(b):
     branch_time = datetime.strptime(b.split('/')[-1], TIME_FORMAT)
@@ -83,7 +136,7 @@ def clean_old_branches(git_repo):
             subprocess.check_call(['git', 'push', '--delete', 'origin'] + old_branches)
 
 def xcpng_version(target):
-    xcpng_version_match = re.match(r'^v(\d+\.\d+)-u-\S+$', target)
+    xcpng_version_match = re.match(r'^v(\d+\.\d+)-\S+$', target)
     if xcpng_version_match is None:
         raise Exception(f"Can't find XCP-ng version in {target}")
     return xcpng_version_match.group(1)
@@ -125,6 +178,43 @@ def push_bumped_release(git_repo, target, test_build_id, pre_build_id):
         commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
         return commit
 
+def is_remote_branch_commit(git_repo, sha, branch):
+    """ Args:
+           git_repo: URL of git repository
+           sha: Git hash
+           branch: remote branch in repository
+        Returns:
+           True if commit is on top of an assumed remote branch, false otherwise
+        Raises:
+           Exception: If branch is missing from repo, or not reachable
+    """
+    with cd(git_repo):
+        references = subprocess.check_output(['git', 'ls-remote', 'origin', f'refs/heads/{branch}']).decode().strip().split()
+        if not references:
+            raise Exception(f'Remote branch "{branch}" missing or unreachable')
+        remote_sha = references[0]
+    return sha == remote_sha
+
+def build_id_of(name, candidate):
+    if candidate is None:
+        return None
+
+    length = len(candidate)
+    if length > 16:
+        logging.error(f"The {name} build id must be at most 16 characters long, it's {length} characters long")
+        exit(1)
+
+    invalid_chars = any(re.match(r'[a-zA-Z0-9]', char) is None for char in candidate)
+
+    if invalid_chars:
+        pp_invalid = ''.join("^" if re.match(r'[a-zA-Z0-9]', char) is None else " " for char in candidate)
+        logging.error(f"The {name} build id must only contain letters and digits:")
+        logging.error(f"    {candidate}")
+        logging.error(f"    {pp_invalid}")
+        exit(1)
+
+    return candidate
+
 def main():
     parser = argparse.ArgumentParser(
         description='Build a package or chain-build several from local git repos for RPM sources'
@@ -135,6 +225,7 @@ def main():
                              'a chained build will be started in the order of the arguments')
     parser.add_argument('--scratch', action="store_true", help='Perform scratch build')
     parser.add_argument('--nowait', action="store_true", help='Do not wait for the build to end')
+    parser.add_argument('--force', action="store_true", help='Bypass sanity checks')
     parser.add_argument(
         '--test-build',
         metavar="ID",
@@ -151,16 +242,12 @@ def main():
     git_repos = [os.path.abspath(check_dir(d)) for d in args.git_repos]
     is_scratch = args.scratch
     is_nowait = args.nowait
-    test_build = args.test_build
-    pre_build = args.pre_build
+
+    test_build = build_id_of("test", args.test_build)
+    pre_build = build_id_of("pre", args.pre_build)
+
     if test_build and pre_build:
         logging.error("--pre-build and --test-build can't be used together")
-        exit(1)
-    if test_build is not None and re.match('^[a-zA-Z0-9]{1,16}$', test_build) is None:
-        logging.error("The test build id must be 16 characters long maximum and only contain letters and digits")
-        exit(1)
-    if pre_build is not None and re.match('^[a-zA-Z0-9]{1,16}$', pre_build) is None:
-        logging.error("The pre build id must be 16 characters long maximum and only contain letters and digits")
         exit(1)
 
     if len(git_repos) > 1 and is_scratch:
@@ -171,15 +258,15 @@ def main():
             parser.error("%s is not in a clean state (or is not a git repository)." % d)
 
     if len(git_repos) == 1:
-        clean_old_branches(git_repos[0])
         remote, hash = get_repo_and_commit_info(git_repos[0])
         if test_build or pre_build:
+            clean_old_branches(git_repos[0])
             hash = push_bumped_release(git_repos[0], target, test_build, pre_build)
         else:
-            check_commit_is_available_remotely(git_repos[0], hash)
+            check_commit_is_available_remotely(git_repos[0], hash, None if is_scratch else target, args.force)
         url = koji_url(remote, hash)
         command = (
-            ['koji', 'build']
+            ['koji', 'build', '--wait-repo']
             + (['--scratch'] if is_scratch else [])
             + [target, url]
             + (['--nowait'] if is_nowait else [])
@@ -189,12 +276,12 @@ def main():
     else:
         urls = []
         for d in git_repos:
-            clean_old_branches(d)
             remote, hash = get_repo_and_commit_info(d)
             if test_build or pre_build:
+                clean_old_branches(d)
                 hash = push_bumped_release(d, target, test_build, pre_build)
             else:
-                check_commit_is_available_remotely(d, hash)
+                check_commit_is_available_remotely(d, hash, None if is_scratch else target, args.force)
             urls.append(koji_url(remote, hash))
         command = ['koji', 'chain-build', target] + (' : '.join(urls)).split(' ') + (['--nowait'] if is_nowait else [])
         print('  '.join(command), flush=True)
