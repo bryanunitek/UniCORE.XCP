@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-
 import argparse
 import io
 import json
 import os
 import re
+from collections import defaultdict
 from datetime import datetime
 from textwrap import dedent
 from typing import cast
@@ -108,6 +108,9 @@ def print_table_header(out, tag):
                             Cards
                         </th>
                         <th scope="col" class="px-6 py-2 w-[12.5%]">
+                            Milestones
+                        </th>
+                        <th scope="col" class="px-6 py-2 w-[12.5%]">
                             Built by
                         </th>
                         <th scope="col" class="px-6 py-2 w-[12.5%]">
@@ -153,6 +156,7 @@ def print_table_line(out, build, link, issues, built_by, prs: list[PullRequest],
     ])
     warn_build = "<span class='has-tooltip'><span class='tooltip p-1 rounded bg-blue-500 text-gray-900'>Build not listed in any of the related cards</span>⚠️</span>"  # noqa
     warn_maintainer = "<span class='has-tooltip'><span class='tooltip p-1 rounded bg-blue-500 text-gray-900'>Maintainer information missing</span>⚠️</span>"  # noqa
+    milestones_content = ", ".join(sorted(set(milestone for issue in issues for milestone in issue['milestones'])))
     print(f'''    
         <tr class="odd:bg-white odd:dark:bg-gray-900 even:bg-gray-50 even:dark:bg-gray-800 border-b dark:border-gray-700 border-gray-200">
             <th scope="row" class="px-6 py-2 font-medium text-gray-900 whitespace-nowrap dark:text-white truncate">
@@ -167,6 +171,9 @@ def print_table_line(out, build, link, issues, built_by, prs: list[PullRequest],
                 <ul>
                 {issues_content}
                 </ul>
+            </td>
+            <td class="px-6 py-2">
+                {milestones_content}
             </td>
             <td class="px-6 py-2">
                 {built_by}
@@ -222,7 +229,7 @@ def find_commits(gh, repo, start_sha, end_sha) -> list[Commit]:
     A commit older that the end_sha commit and added by a merge commit won't appear in this list.
     """
     cache_key = f'commits-2-{start_sha}-{end_sha}'
-    if cache_key in CACHE:
+    if not args.re_cache and cache_key in CACHE:
         return cast(list[Commit], CACHE[cache_key])
     commits = []
     if gh:
@@ -237,24 +244,106 @@ def find_pull_requests(gh, repo, start_sha, end_sha):
     """Find the pull requests for the commits in the [start_sha,end_sha[ range."""
     prs = set()
     for commit in find_commits(gh, repo, start_sha, end_sha):
-        cache_key = f'commit-prs-3-{commit.sha}'
-        if cache_key in CACHE:
+        cache_key = f'commit-prs-4-{commit.sha}'
+        if not args.re_cache and cache_key in CACHE:
             prs.update(cast(list[PullRequest], CACHE[cache_key]))
         elif gh:
             commit_prs = list(commit.get_pulls())
             if not commit_prs:
                 # github is not properly reporting some PRs. Try to workaround that problem by getting
                 # the PR number from the commit message
-                group = re.match(
-                    r'Merge pull request #(\d+) from ' + repo.split('/')[0] + '/', commit.commit.message
-                )
+                group = re.match(r'Merge pull request #(\d+) from ', commit.commit.message)
                 if group:
                     pr = gh.get_repo(repo).get_pull(int(group[1]))
                     prs.add(pr)
+            # github sometimes return a PR which doesn't match the given commit, so we check if the commit
+            # is actually in the PR
+            commit_prs = [pr for pr in commit_prs if commit in pr.get_commits()]
             CACHE.set(cache_key, commit_prs, expire=RETENTION_TIME)
             prs.update(commit_prs)
     return sorted(prs, key=lambda p: p.number, reverse=True)
 
+
+def get_plane_issues(plane_token):
+    """Fetch all issues from Plane API with cursor-based pagination."""
+    all_results = []
+    cursor = None
+    base_url = (
+        'https://project.vates.tech/api/v1/workspaces/vates-global/projects/'
+        '43438eec-1335-4fc2-8804-5a4c32f4932d/issues/'
+    )
+
+    while True:
+        resp = requests.get(
+            base_url,
+            headers={'x-api-key': plane_token},
+            params={'cursor': cursor} if cursor else {},
+        )
+        data = resp.json()
+        all_results.extend(data.get('results', []))
+        cursor = data.get('next_cursor')
+        if not data.get('next_page_results', False) or not cursor:
+            break
+
+    return all_results
+
+def get_plane_milestones(plane_token):
+    """Fetch all milestones from Plane API with cursor-based pagination."""
+    all_results = []
+    cursor = None
+    base_url = (
+        'https://project.vates.tech/api/v1/workspaces/vates-global/projects/'
+        '43438eec-1335-4fc2-8804-5a4c32f4932d/milestones/'
+    )
+
+    while True:
+        resp = requests.get(
+            base_url,
+            headers={'x-api-key': plane_token},
+            params={'cursor': cursor} if cursor else {},
+        )
+        data = resp.json()
+        all_results.extend(data.get('results', []))
+        cursor = data.get('next_cursor')
+        if not data.get('next_page_results', False) or not cursor:
+            break
+
+    return all_results
+
+def get_plane_milestone_issues(plane_token, milestone: str):
+    """Fetch all issues for a milestone from Plane API with cursor-based pagination."""
+    all_results = []
+    cursor = None
+    base_url = (
+        'https://project.vates.tech/api/v1/workspaces/vates-global/projects/'
+        f'43438eec-1335-4fc2-8804-5a4c32f4932d/milestones/{milestone}/work-items/'
+    )
+
+    while True:
+        resp = requests.get(
+            base_url,
+            headers={'x-api-key': plane_token},
+            params={'cursor': cursor} if cursor else {},
+        )
+        data = resp.json()
+        all_results.extend(data.get('results', []))
+        cursor = data.get('next_cursor')
+        if not data.get('next_page_results', False) or not cursor:
+            break
+
+    return all_results
+
+def get_plane_issues_with_milestones(plane_token):
+    issues = get_plane_issues(plane_token)
+    milestones = get_plane_milestones(plane_token)
+    issue_milestones = defaultdict(list)
+    for milestone in milestones:
+        milestone_issues = get_plane_milestone_issues(plane_token, milestone['id'])
+        for mi in milestone_issues:
+            issue_milestones[mi['issue']].append(milestone['title'])
+    for issue in issues:
+        issue['milestones'] = issue_milestones[issue['id']]
+    return issues
 
 started_at = datetime.now()
 
@@ -268,21 +357,27 @@ parser.add_argument(
     '--github-token', help="The token used to access the Github api", default=os.environ.get('GITHUB_TOKEN')
 )
 parser.add_argument('--cache', help="The cache path", default="/tmp/pkg_in_pipe.cache")
+parser.add_argument(
+    '--tag', '-t', dest='tags', help="The koji tags to include in the report", action='append', default=[]
+)
+parser.add_argument(
+    '--package', '-p', dest='packages', help="The packages to include in the report", action='append', default=[]
+)
+parser.add_argument('--re-cache', help="Refresh the cache", action='store_true')
 args = parser.parse_args()
 
 CACHE = diskcache.Cache(args.cache)
 RETENTION_TIME = 24 * 60 * 60  # 24 hours
 
+DEFAULT_TAGS = [f'v{v}-{p}' for v in ['8.2', '8.3'] for p in ['incoming', 'ci', 'testing', 'candidates', 'lab']]
+tags = args.tags or DEFAULT_TAGS
+
 # load the issues from plane, so we can search for the plane card related to a build
 try:
-    resp = requests.get(
-        'https://project.vates.tech/api/v1/workspaces/vates-global/projects/'
-        '43438eec-1335-4fc2-8804-5a4c32f4932d/issues/',
-        headers={'x-api-key': args.plane_token},
-    )
-    issues = resp.json().get('results', [])
+    issues = get_plane_issues_with_milestones(args.plane_token)
 except Exception:
     issues = []
+    raise
 
 # connect to github
 if args.github_token:
@@ -304,7 +399,6 @@ with io.StringIO() as out:
         print_plane_warning(out)
     if not gh:
         print_github_warning(out)
-    tags = [f'v{v}-{p}' for v in ['8.2', '8.3'] for p in ['incoming', 'ci', 'testing', 'candidates', 'lab']]
     with io.StringIO() as temp_out:
         try:
             # open koji session
@@ -312,8 +406,15 @@ with io.StringIO() as out:
             session = koji.ClientSession('https://kojihub.xcp-ng.org', config)
             session.ssl_login(config['cert'], None, config['serverca'])
             for tag in tags:
+                tag_history = dict(
+                    (tl['build_id'], tl['create_ts'])
+                    for tl in session.queryHistory(tag=tag, active=True)['tag_listing']
+                )
                 print_table_header(temp_out, tag)
-                for tagged in sorted(session.listTagged(tag), key=lambda build: int(build['build_id']), reverse=True):
+                taggeds = session.listTagged(tag)
+                taggeds = (t for t in taggeds if t['package_name'] in args.packages or args.packages == [])
+                taggeds = sorted(taggeds, key=lambda t: (tag_history[t['build_id']], t['build_id']), reverse=True)
+                for tagged in taggeds:
                     build = session.getBuild(tagged['build_id'])
                     prs: list[PullRequest] = []
                     maintained_by = None
@@ -321,7 +422,7 @@ with io.StringIO() as out:
                     if build['source'] is not None:
                         (repo, sha) = parse_source(build['source'])
                         prs = find_pull_requests(gh, repo, sha, previous_build_sha)
-                        maintained_by = PACKAGES.get(repo.split('/')[-1], {}).get('maintainer')
+                    maintained_by = PACKAGES.get(tagged['package_name'], {}).get('maintainer')
                     build_url = f'https://koji.xcp-ng.org/buildinfo?buildID={tagged["build_id"]}'
                     build_issues = filter_issues(issues, [build_url] + [pr.html_url for pr in prs])
                     print_table_line(
