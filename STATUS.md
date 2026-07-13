@@ -10,8 +10,8 @@ This repository exists as a **scaffold anchor**. Its purpose at this moment is t
 
 1. Reserve the canonical name on `bryanunitek/`.
 2. Lock the licence position (GPL-2.0/AGPL-3.0 for code additions matching upstream; CC BY 4.0 for documentation additions).
-3. Document the family pattern and upstream relationship in [`README.md`](README.md).
-4. Document the merge discipline in [`UPSTREAM-MERGE-DISCIPLINE.md`](UPSTREAM-MERGE-DISCIPLINE.md).
+3. Document the family pattern and upstream relationship in [`README.md`](https://git.unitek-systems.com/UniCORE/UniCORE.XCP/src/branch/main/README.md) (mirror: [GitHub](https://github.com/bryanunitek/UniCORE.XCP/blob/main/README.md)).
+4. Document the merge discipline in [`UPSTREAM-MERGE-DISCIPLINE.md`](https://git.unitek-systems.com/UniCORE/UniCORE.XCP/src/branch/main/UPSTREAM-MERGE-DISCIPLINE.md) (mirror: [GitHub](https://github.com/bryanunitek/UniCORE.XCP/blob/main/UPSTREAM-MERGE-DISCIPLINE.md)).
 5. Enrol the repository in the **UniCORE Sanity Check fleet** so it cannot be forgotten.
 
 Nothing else is in this initial scaffold commit. Specifically:
