@@ -1958,6 +1958,12 @@
         "package": "libdwarf",
         "status": "packaged"
     },
+    "libidn2": {
+        "added_by": "XS",
+        "maintainer": "OS Platform & Release",
+        "package": "libidn2",
+        "status": "packaged"
+    },
     "libedit": {
         "added_by": "XS",
         "maintainer": "OS Platform & Release",
@@ -4758,6 +4764,12 @@
         "maintainer": "Hypervisor & Kernel",
         "note": "replaces proprietary xs-clipboardd",
         "package": "xcp-clipboardd",
+        "status": "packaged"
+    },
+    "xcp-efivar-utils": {
+        "added_by": "XCP-ng",
+        "maintainer": "Hypervisor & Kernel",
+        "package": "xcp-efivar-utils",
         "status": "packaged"
     },
     "xcp-emu-manager": {
